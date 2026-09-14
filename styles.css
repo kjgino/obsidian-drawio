@@ -15,6 +15,37 @@
 body.drawio-align-left .drawio-preview { text-align: left; }
 body.drawio-align-left .drawio-preview svg { margin: 0; }
 
+/* Hover Edit button: the way into the editor since clicking a preview stopped
+   opening it. A real <button>, parked in the corner, revealed on hover or
+   keyboard focus — not the centred overlay removed in 0.6.1. */
+.drawio-edit-button {
+  position: absolute; z-index: 4; top: 8px; right: 8px;
+  margin: 0; padding: 3px 10px;
+  font-size: var(--font-ui-small); line-height: 1.4;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .2);
+  opacity: 0; pointer-events: none;
+  transition: opacity .12s ease, background-color .1s ease;
+}
+.drawio-codeblock:hover > .drawio-edit-button,
+.drawio-embed:hover > .drawio-edit-button,
+.drawio-dualformat-embed:hover > .drawio-edit-button,
+.drawio-preview-file-view:hover > .drawio-edit-button,
+.drawio-edit-button:focus-visible { opacity: 1; pointer-events: auto; }
+.drawio-edit-button:hover { background: var(--background-modifier-hover); }
+.drawio-edit-button:focus-visible {
+  outline: 2px solid var(--interactive-accent); outline-offset: 1px;
+}
+/* The interactive viewer's own toolbar carries an Edit button; one is enough. */
+.drawio-interactive-active > .drawio-edit-button { display: none; }
+
+/* Clickable link hotspots (transparent overlays built from the diagram's own
+   shape links — see preview/linkLayer.ts). */
+.drawio-link-hotspot { cursor: pointer; }
+
 /* Previews whose click action is "Do nothing" shouldn't advertise clickability. */
 .drawio-codeblock.drawio-no-action, .drawio-embed.drawio-no-action,
 .drawio-dualformat-embed.drawio-no-action { cursor: default; }
@@ -139,10 +170,13 @@ body.drawio-align-left .drawio-preview svg { margin: 0; }
 .drawio-migrate-list li { margin: 4px 0; }
 .drawio-migrate-links { color: var(--text-muted); }
 
-/* ---- Modal editor (code blocks & embeds) ---- */
-.drawio-modal { width: 90vw; height: 90vh; max-width: none; }
-.drawio-modal .modal-content { height: 100%; padding: 0; }
+/* ---- Shared editor pane (code blocks, embeds, image files) ---- */
 .drawio-iframe { width: 100%; height: 100%; border: none; display: block; }
+.drawio-editor-pane { height: 100%; padding: 0; }
+.drawio-editor-pane .drawio-iframe { width: 100%; height: 100%; }
+.drawio-editor-pane-empty {
+  padding: 16px; color: var(--text-muted); font-size: var(--font-ui-small);
+}
 
 /* ---- Headless export (HeadlessExporter) ---- */
 /* Off-screen host for the one-shot export iframe: kept rendered — not

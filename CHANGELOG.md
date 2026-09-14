@@ -8,6 +8,39 @@ The release workflow publishes the tagged version's section below as the GitHub
 release notes, so a version's section must be complete before its tag is pushed
 (see the Release process section of CLAUDE.md).
 
+## 0.8.0 - 2026-09-14
+
+### Changed — action may be required
+
+- Clicking a diagram preview no longer opens the editor. Hover the preview and
+  press the **Edit** button in its top-right corner instead. To get the old
+  behavior back, set **Settings → Drawio → Preview click action** to **Open
+  built-in editor** — existing installs keep whatever that setting was already
+  on, so this only changes things for new installs.
+- The editor no longer opens in a full-screen window. **Edit** now opens the
+  diagram in a pane split below the note, which every later **Edit** reuses.
+  Move the pane wherever you like — it stays there.
+- New installs render previews left-aligned instead of centered. Change it back
+  with **Settings → Drawio → Preview alignment → Center**; existing installs
+  keep their current setting.
+- **Edit button action** is now always shown in the settings, not only when
+  **Preview click action** is **Interactive viewer** — it governs every **Edit**
+  button.
+
+### Added
+
+- Links drawn into a diagram are clickable. In drawio, right-click a shape or a
+  connector and choose **Edit Link…**; Obsidian understands `[[Some Note]]`,
+  `[[Some Note#Heading]]`, `obsidian://open?vault=…&file=…` URIs, plain vault
+  paths, and ordinary URLs such as `https://…`.
+- Clicking a link to something in your vault opens it in a pane split to the
+  right of the note, and every later link click reuses that same pane. External
+  URLs open in your browser. Links work in `` ```drawio `` blocks, `.drawio`
+  embeds, and the read-only `.drawio` file tab — on phones and tablets too.
+- Every preview gets an **Edit** button on hover: code blocks, `.drawio`
+  embeds, the read-only `.drawio` file tab, and `.drawio.svg` / `.drawio.png`
+  image embeds.
+
 ## 0.7.1 - 2026-08-15
 
 ### Changed

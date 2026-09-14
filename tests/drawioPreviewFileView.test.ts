@@ -53,6 +53,33 @@ describe('DrawioPreviewFileView', () => {
   const originalIsDesktopApp = Platform.isDesktopApp;
   afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });
 
+  it('mounts a hover Edit button on desktop that opens the editor', () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const view = makeView(fakePlugin('none', openEditor));
+    view.setViewData(XML, true);
+
+    const button = view.contentEl.querySelector('button.drawio-edit-button')!;
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
+    expect(openEditor.mock.calls[0]?.[1]).toBe(view.contentEl);
+  });
+
+  it('keeps exactly one Edit button when the view re-renders', () => {
+    Platform.isDesktopApp = true;
+    const view = makeView(fakePlugin('none'));
+    view.setViewData(XML, true);
+    view.setViewData(XML, false);
+    expect(view.contentEl.querySelectorAll('.drawio-edit-button').length).toBe(1);
+  });
+
+  it('has no Edit button on mobile', () => {
+    Platform.isDesktopApp = false;
+    const view = makeView(fakePlugin('none'));
+    view.setViewData(XML, true);
+    expect(view.contentEl.querySelector('.drawio-edit-button')).toBeNull();
+  });
+
   it('on mobile renders the fixed banner and the diagram, with no iframe', () => {
     Platform.isDesktopApp = false;
     const view = makeView(fakePlugin());

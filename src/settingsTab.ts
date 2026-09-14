@@ -120,15 +120,17 @@ export class DrawioSettingTab extends PluginSettingTab {
       new Setting(containerEl)
         .setName('Preview click action')
         .setDesc(
-          'What clicking a diagram preview does (embeds and read-only file tabs). Code blocks ' +
-          'have no underlying file, so opening the system default app falls back to the ' +
-          'built-in editor.',
+          'What clicking a diagram preview does (embeds and read-only file tabs). Editing goes ' +
+          'through the Edit button that appears when you hover a preview, so the default is ' +
+          'to do nothing. Code blocks have no underlying file, so opening the system default ' +
+          'app falls back to the built-in editor. Clicking a link drawn into the diagram ' +
+          'always follows that link, whatever this is set to.',
         )
         .addDropdown((d) => d
+          .addOption('none', 'Do nothing (default)')
+          .addOption('interactive', 'Interactive viewer')
           .addOption('editor', 'Open built-in editor')
           .addOption('defaultApp', 'Open in system default app')
-          .addOption('interactive', 'Interactive viewer')
-          .addOption('none', 'Do nothing')
           .setValue(s.previewClickAction)
           .onChange((v) => {
             s.previewClickAction = v as PreviewClickAction;
@@ -136,11 +138,13 @@ export class DrawioSettingTab extends PluginSettingTab {
             this.display();
           }));
 
-      if (s.previewClickAction === 'interactive') {
+      {
         const editActionSetting = new Setting(containerEl)
           .setName('Edit button action')
           .setDesc(
-            'How the Interactive Viewer Edit button opens file-backed and inline diagrams.',
+            'What the Edit button on a preview opens — the hover button, and the one in the ' +
+            'interactive viewer toolbar. The built-in editor opens in a pane split below the ' +
+            'note, reused by every later Edit.',
           );
         editActionSetting.settingEl.addClass('drawio-edit-action-settings');
         const fields = editActionSetting.settingEl.createDiv({ cls: 'drawio-edit-action-fields' });
@@ -169,10 +173,13 @@ export class DrawioSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName('Preview alignment')
-      .setDesc('How rendered previews (embeds and code blocks) are aligned. Takes effect immediately.')
+      .setDesc(
+        'How rendered previews (embeds and code blocks) are aligned in a note. ' +
+        'Takes effect immediately.',
+      )
       .addDropdown((d) => d
+        .addOption('left', 'Left (default)')
         .addOption('center', 'Center')
-        .addOption('left', 'Left')
         .setValue(s.previewAlignment)
         .onChange((v) => {
           s.previewAlignment = v as PreviewAlignment;

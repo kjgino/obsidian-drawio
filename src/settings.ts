@@ -45,9 +45,9 @@ export const DEFAULT_SETTINGS: DrawioSettings = {
   newDiagramLocation: 'root',
   newDiagramFolder: '',
   newDiagramFormat: 'drawio',
-  previewAlignment: 'center',
+  previewAlignment: 'left',
   readonlyFileView: false,
-  previewClickAction: 'editor',
+  previewClickAction: 'none',
   editButtonAction: 'editor',
   webappVersionNoticeShownFor: '',
 };

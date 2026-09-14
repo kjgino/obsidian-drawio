@@ -52,6 +52,61 @@ const MULTI_PAGE_XML = '<mxfile>' +
   '<diagram id="1" name="Page-2"><mxGraphModel/></diagram>' +
   '</mxfile>';
 
+describe('drawio code block — hover Edit button', () => {
+  const originalIsDesktopApp = Platform.isDesktopApp;
+  afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });
+
+  it('mounts an Edit button that opens the editor, anchored to the preview', async () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const { plugin, run } = fakePlugin(openEditor, 'none');
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+
+    const wrapper = el.querySelector('.drawio-codeblock')!;
+    const button = wrapper.querySelector('button.drawio-edit-button')!;
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    expect(openEditor).toHaveBeenCalledTimes(1);
+    // Second argument is the origin element, so the editor pane splits off the
+    // note this block lives in.
+    expect(openEditor.mock.calls[0]?.[1]).toBe(wrapper);
+  });
+
+  it('has no Edit button on mobile — there is no editor there', async () => {
+    Platform.isDesktopApp = false;
+    const { plugin, run } = fakePlugin(vi.fn());
+    registerDrawioCodeBlock(plugin);
+    const el = document.createElement('div');
+    await run(XML, el, { sourcePath: 'note.md' });
+    expect(el.querySelector('.drawio-edit-button')).toBeNull();
+  });
+
+  it('disposes the Edit button when the section unloads', async () => {
+    Platform.isDesktopApp = true;
+    let child: { load?: () => void; unload?: () => void } | undefined;
+    const raw = {
+      app: {},
+      settings: { previewClickAction: 'none', editButtonAction: 'editor' },
+      previewOpts: () => ({ dark: false }),
+      openEditor: vi.fn(),
+      registerMarkdownCodeBlockProcessor: (_lang: string, cb: Processor) => {
+        void cb(XML, el, {
+          sourcePath: 'note.md',
+          addChild: (c: { load?: () => void }) => { child = c; c.load?.(); },
+        });
+      },
+    };
+    const el = document.createElement('div');
+    registerDrawioCodeBlock(raw as unknown as DrawioPlugin);
+    await Promise.resolve();
+    expect(el.querySelector('.drawio-edit-button')).not.toBeNull();
+    child!.unload!();
+    expect(el.querySelector('.drawio-edit-button')).toBeNull();
+  });
+});
+
 describe('drawio code block — mobile click behavior', () => {
   const originalIsDesktopApp = Platform.isDesktopApp;
   afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });

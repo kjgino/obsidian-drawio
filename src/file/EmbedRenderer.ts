@@ -6,6 +6,8 @@ import {
   resolveClickAction, resolveEditButtonAction, openWithDefaultApp,
 } from '../preview/clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
+import { mountEditButton, type EditButtonHandle } from '../preview/editButton';
+import { registerDiagramLinks, type DiagramLinkHandle } from '../preview/linkNav';
 import { SectionLifecycle } from '../preview/sectionLifecycle';
 import {
   readEmbedViewportHeight, writeEmbedViewportHeight,
@@ -95,6 +97,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
   private currentPage = 0;
   private pageResolvedFromSubpath = false;
   private interactive: InteractiveMountHandle | null = null;
+  /** Re-created on every render (render() empties the container). */
+  private editButton: EditButtonHandle | null = null;
+  /** Registered once on the container, which survives re-renders. */
+  private links: DiagramLinkHandle | null = null;
   /** Invalidates in-flight render() awaits when a newer render supersedes them. */
   private renderGeneration = 0;
   /** Set on unload; render() must become a no-op afterwards (see below). */
@@ -138,7 +144,14 @@ class DrawioFileEmbed extends MarkdownRenderChild {
   }
 
   onload(): void {
-    // Reflect edits made elsewhere (e.g. the modal or the file view).
+    // Diagram links are delegated on the container, which outlives every
+    // re-render — and they work on mobile too (they only move the workspace).
+    this.links = registerDiagramLinks(this.containerEl, this.plugin, {
+      // Links resolve against the note holding the embed; a registry embed
+      // without one (rare) falls back to the diagram file's own folder.
+      sourcePath: () => this.sourcePath ?? this.file.path,
+    });
+    // Reflect edits made elsewhere (e.g. the editor pane or the file view).
     this.registerEvent(this.plugin.app.vault.on('modify', (f) => {
       if (f instanceof TFile && f.path === this.file.path) void this.render();
     }));
@@ -160,6 +173,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     this.storedHeightRefresh.cancel();
     this.interactive?.dispose();
     this.interactive = null;
+    this.editButton?.dispose();
+    this.editButton = null;
+    this.links?.dispose();
+    this.links = null;
   }
 
   private async render(): Promise<void> {
@@ -172,6 +189,8 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     const el = this.containerEl;
     this.interactive?.dispose();
     this.interactive = null;
+    this.editButton?.dispose();
+    this.editButton = null;
     el.empty();
     el.addClass('drawio-embed');
     if (this.sourcePath) markEmbedInsertion(el, this.sourcePath, this.file, this.subpath);
@@ -227,6 +246,10 @@ class DrawioFileEmbed extends MarkdownRenderChild {
       }
 
       if (Platform.isDesktopApp) {
+        this.editButton = mountEditButton(el, {
+          label: 'Edit diagram',
+          onEdit: () => this.runEditAction(el),
+        });
         this.interactive = mountInteractiveViewer(el, preview, {
           isEnabled: () =>
             resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
@@ -241,14 +264,7 @@ class DrawioFileEmbed extends MarkdownRenderChild {
               undefined, undefined, getLivePreviewSourceOffset(el),
             );
           } : undefined,
-          onEdit: () => {
-            const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
-            if (editAction.kind === 'editor') {
-              this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
-            } else if (editAction.kind === 'defaultApp') {
-              openWithDefaultApp(this.plugin.app, this.file.path);
-            }
-          },
+          onEdit: () => this.runEditAction(el),
         });
         scheduleStoredEmbedHeight(
           this.plugin, this.interactive, this.sourcePath, this.file, this.subpath,
@@ -265,19 +281,30 @@ class DrawioFileEmbed extends MarkdownRenderChild {
     if (!el.dataset.drawioClick) {
       el.dataset.drawioClick = '1';
       el.addEventListener('click', (e) => {
+        const current = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
+        // "Do nothing" (the default since 0.8.0) must stay out of the way:
+        // swallowing the click would break text selection around the embed,
+        // and on mobile there is no click action at all.
+        if (current.kind === 'none' || !Platform.isDesktopApp) return;
         e.preventDefault();
         e.stopPropagation();
-        if (!Platform.isDesktopApp) {
-          new Notice('Drawio: editing is only available on desktop');
-          return;
-        }
-        const current = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
         if (current.kind === 'editor') {
-          this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+          this.plugin.openEditor(new FileSource(this.plugin.app, this.file), el);
         } else if (current.kind === 'defaultApp') {
           openWithDefaultApp(this.plugin.app, this.file.path);
         }
       });
+    }
+  }
+
+  /** What the Edit button does — the "Edit button action" setting, resolved at
+   * click time so a settings change needs no re-render. */
+  private runEditAction(el: HTMLElement): void {
+    const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
+    if (editAction.kind === 'editor') {
+      this.plugin.openEditor(new FileSource(this.plugin.app, this.file), el);
+    } else if (editAction.kind === 'defaultApp') {
+      openWithDefaultApp(this.plugin.app, this.file.path);
     }
   }
 
@@ -325,6 +352,9 @@ export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
     const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
     return action.kind === 'interactive' ? resolveClickAction('editor', 'file') : action;
   };
+  // The Edit button follows "Edit button action" like every other surface.
+  const resolveEditAction = () =>
+    resolveEditButtonAction(plugin.settings.editButtonAction, 'file');
   plugin.registerMarkdownPostProcessor((el: HTMLElement, ctx: MarkdownPostProcessorContext) => {
     if (!Platform.isDesktopApp) return;
     for (const span of Array.from(el.querySelectorAll<HTMLElement>('.internal-embed'))) {
@@ -345,6 +375,19 @@ export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
       const action = resolveAction();
       span.setAttribute('title', action.title);
       span.toggleClass('drawio-no-action', action.kind === 'none');
+      // Edit button only: the image is Obsidian's own <img>, so there is no
+      // sanitized SVG of ours to hang link hotspots on.
+      const editAction = () => {
+        const current = resolveEditAction();
+        if (current.kind === 'defaultApp') openWithDefaultApp(plugin.app, file.path);
+        else plugin.openEditor(new DualFormatFileSource(plugin.app, file, format), span);
+      };
+      const lifecycle = new SectionLifecycle(span);
+      ctx.addChild(lifecycle);
+      lifecycle.whenReady(() => {
+        const editButton = mountEditButton(span, { label: 'Edit diagram', onEdit: editAction });
+        lifecycle.register(() => editButton.dispose());
+      });
       // Capture phase so we pre-empt any native click behavior on the <img>
       // (e.g. lightbox); the action is re-resolved at click time so a settings
       // change applies to already-decorated embeds.
@@ -354,7 +397,7 @@ export function registerDualFormatEmbeds(plugin: DrawioPlugin) {
         e.preventDefault();
         e.stopPropagation();
         if (current.kind === 'editor') {
-          plugin.openEditor(new DualFormatFileSource(plugin.app, file, format));
+          plugin.openEditor(new DualFormatFileSource(plugin.app, file, format), span);
         } else if (current.kind === 'defaultApp') {
           openWithDefaultApp(plugin.app, file.path);
         }
@@ -384,13 +427,10 @@ function registerEmbedPostProcessor(plugin: DrawioPlugin) {
       const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
       span.setAttribute('title', Platform.isDesktopApp ? action.title : 'Drawio diagram');
       span.addEventListener('click', () => {
-        if (!Platform.isDesktopApp) {
-          new Notice('Drawio: editing is only available on desktop');
-          return;
-        }
+        if (!Platform.isDesktopApp) return;
         const current = resolveClickAction(plugin.settings.previewClickAction, 'file');
         if (current.kind === 'editor') {
-          plugin.openEditor(new FileSource(plugin.app, file));
+          plugin.openEditor(new FileSource(plugin.app, file), span);
         } else if (current.kind === 'defaultApp') {
           openWithDefaultApp(plugin.app, file.path);
         }
@@ -461,12 +501,29 @@ async function renderEmbedInto(
 
     const action = resolveClickAction(plugin.settings.previewClickAction, 'file');
     span.toggleClass('drawio-no-action', Platform.isDesktopApp && action.kind === 'none');
+    lifecycle.whenReady(() => {
+      const links = registerDiagramLinks(span, plugin, { sourcePath: () => ctx.sourcePath });
+      lifecycle.register(() => links.dispose());
+    });
     // The interactive mount is queued through the section lifecycle: it runs
     // when (and only when) Obsidian loads this section's children — never for
     // a section already torn down while the reads above were in flight, and
     // not skipped when the load is dispatched only after those reads.
     if (Platform.isDesktopApp) {
       lifecycle.whenReady(() => {
+        const runEditAction = (): void => {
+          const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'file');
+          if (editAction.kind === 'editor') {
+            plugin.openEditor(new FileSource(plugin.app, file), span);
+          } else if (editAction.kind === 'defaultApp') {
+            openWithDefaultApp(plugin.app, file.path);
+          }
+        };
+        const editButton = mountEditButton(span, {
+          label: 'Edit diagram',
+          onEdit: runEditAction,
+        });
+        lifecycle.register(() => editButton.dispose());
         const mounted = mountInteractiveViewer(span, preview, {
           isEnabled: () =>
             resolveClickAction(plugin.settings.previewClickAction, 'file').kind === 'interactive',
@@ -481,14 +538,7 @@ async function renderEmbedInto(
               getLivePreviewSourceOffset(span),
             );
           },
-          onEdit: () => {
-            const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'file');
-            if (editAction.kind === 'editor') {
-              plugin.openEditor(new FileSource(plugin.app, file));
-            } else if (editAction.kind === 'defaultApp') {
-              openWithDefaultApp(plugin.app, file.path);
-            }
-          },
+          onEdit: runEditAction,
         });
         interactive = mounted;
         // Single teardown seam: dispose covers both the lazy listeners and

@@ -1,5 +1,6 @@
 // @ts-expect-error - imported as raw text via esbuild text loader
 import viewerSource from './viewer.min.txt';
+import type { LinkSourceViewer } from './linkLayer';
 
 const SENTINEL = 'drawioViewerLoaded';
 
@@ -43,7 +44,9 @@ export function ensureViewerLoaded(doc: Document = activeDocument): void {
 }
 
 interface GraphViewerStatic {
-  createViewerForElement(el: HTMLElement): void;
+  /** The callback receives the created GraphViewer instance — the only handle
+   * on the live `graph`, which `linkLayer.ts` needs for link hit-testing. */
+  createViewerForElement(el: HTMLElement, onCreated?: (viewer: LinkSourceViewer) => void): void;
 }
 
 export function getGraphViewer(win: Window = window): GraphViewerStatic | null {

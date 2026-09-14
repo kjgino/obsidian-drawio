@@ -18,9 +18,15 @@ preview only** — code blocks, embeds, and a read-only view for standalone
 "Mobile support" entry below.
 
 Three surfaces:
-- **Code blocks** — ` ```drawio ` blocks: rendered as an SVG preview, click to edit.
+- **Code blocks** — ` ```drawio ` blocks: rendered as an SVG preview, hover for **Edit**.
 - **Standalone `.drawio` files** — opened in a dedicated tab with the editor embedded inline (Excalidraw-style).
-- **Embeds** — `![[file.drawio]]` in any note: inline preview in both editing and reading views, click to edit.
+- **Embeds** — `![[file.drawio]]` in any note: inline preview in both editing and reading views, hover for **Edit**.
+
+Since 0.8.0, **Edit** on a preview opens the diagram in one shared editor pane
+split below the note (reused by every later Edit), and **links drawn into a
+diagram** open in one shared pane split to the right. A plain click on a
+preview does nothing by default. See the two entries under "Non-obvious
+decisions".
 
 ## Two independent rendering engines (important mental model)
 
@@ -44,15 +50,23 @@ These are separate; a change to one rarely affects the other.
 - `src/settings.ts` / `src/settingsTab.ts` — settings model + settings tab.
 - `src/model/` — `DrawioSource` (edit-target abstraction: code block or file),
   `xmlUtils` (`isValidDrawioXml`/`ensureMxfile`), `formatXml` (pretty-print),
-  `codeBlockEdit`/`locateBlock` (find & replace a block's XML in a note).
+  `codeBlockEdit`/`locateBlock` (find & replace a block's XML in a note),
+  `diagramLink` (classify a shape's link: wiki link / `obsidian://` / vault
+  path / external URL / blocked — pure, no DOM).
 - `src/codeblock/` — code-block processor + `CodeBlockSource`.
 - `src/file/` — `DrawioFileView` (inline-editor tab, a `TextFileView`),
   `EmbedRenderer` (via `app.embedRegistry`, with a Reading-view post-processor
   fallback), `FileSource`.
-- `src/editor/` — `DrawioEditor` (iframe + postMessage), `DrawioModal`, `embedMessages`.
+- `src/editor/` — `DrawioEditor` (iframe + postMessage), `DrawioEditorPaneView`
+  (the shared bottom editor pane) + `editorPane` (acquire/reuse it),
+  `embedMessages`.
 - `src/preview/` — `ViewerRenderer` (`renderPreview`), `loadViewer`, `svgSanitizer`,
-  `pageControl` (multi-page prev/next control), and the vendored
-  `viewer.min.txt`.
+  `pageControl` (multi-page prev/next control), `editButton` (the hover **Edit**
+  button), `linkLayer` (builds the clickable hotspots) + `linkNav` (claims the
+  click), and the vendored `viewer.min.txt`.
+- `src/workspace/` — `splitPane` (find the leaf holding an element; reuse-or-split
+  a pane) and `linkPane` (open a diagram link in the shared right pane). Pure
+  Obsidian APIs, so both work on mobile.
 - `src/server/` — `ServerManager` (local `127.0.0.1` HTTP server serving the offline
   webapp, with idle shutdown) + `portDetector`.
 
@@ -224,6 +238,57 @@ name; the manifest id inside is `drawio-editor`).
   (recorded in the internal `webappVersionNoticeShownFor` setting) because
   staying on an older webapp is a legitimate choice; a hand-installed webapp
   with no `DRAWIO_VERSION` file reads as null and is left alone.
+- **Diagram links come from the GraphViewer INSTANCE, never from the rendered
+  SVG** (`src/preview/linkLayer.ts`). GraphViewer's SVG output contains no
+  `<a>` elements and no cell ids at all — drawio implements link clicks with
+  listeners on GraphViewer's own container, which `ViewerRenderer` throws away
+  on purpose (it also carries the lightbox/zoom handlers). Don't go looking for
+  an `xlink:href` to hook; there isn't one, and there is no export flag that
+  adds one on this path. What works, and is regression-tested against the REAL
+  vendored viewer (`tests/linkLayer.dom.test.ts`): capture the instance from
+  `createViewerForElement(mount, cb)`, then read `graph.getLinkForCell(cell)`
+  and `graph.view.getState(cell)`. **State coordinates ARE the extracted SVG's
+  user units** (GraphViewer renders at scale 1; the viewBox origin shift moves
+  the box, not the contents), so hotspots are placed from state bounds with no
+  rescaling. Hotspots are built AFTER sanitization from our own `createElementNS`
+  markup and carry the target in `data-drawio-link`, **never in an `href`** — the
+  DOM must not be able to navigate on its own. Two independent gates keep script
+  URLs out and neither is trusted alone: drawio's own `getLinkForCell` already
+  strips a `javascript:` scheme (`javascript:alert(1)` arrives as `alert(1)`),
+  and `classifyDiagramLink` allowlists schemes both when the hotspot is built
+  and again when it is clicked.
+  - **The hotspot layer MUST carry the shape group's `transform`, and jsdom
+    will not tell you so.** In a real browser GraphViewer turns on mxGraph's
+    `useCssTransforms`: the graph is rendered at scale 1 / translate 0 and the
+    real zoom and origin go onto the draw pane's parent `<g>` as
+    `transform="scale(s,s)translate(tx,ty)"` (`updateCssTransform` in the
+    vendored blob) — so **cell states are MODEL coordinates there**. Under
+    jsdom `mxClient.NO_FO` is true and its UA reads as Safari, which drawio
+    excludes, so that path stays off and the identical numbers arrive baked
+    into the shapes. A hotspot layer appended at the SVG root therefore looks
+    perfect in every test and is displaced by the entire translate in
+    Obsidian — which is exactly how 0.8.0's "diagram links do nothing" bug
+    shipped. `buildLinkLayer` copies that group's `transform` onto the layer,
+    which is correct in both modes.
+    `tests/previewLinkTransform.dom.test.ts` forces the browser path on (it
+    flips `mxClient.NO_FO`/`IS_SF` before rendering) and asserts both that the
+    mode is genuinely active and that the hotspot lands on the shape — don't
+    weaken either half; the first assertion is what stops the suite from
+    quietly degrading back into the jsdom-only case.
+- **The two shared panes are acquired, never remembered by id**
+  (`src/workspace/splitPane.ts`). `Workspace.getLeafById` is `@since 1.5.1`,
+  above `minAppVersion` 1.4.0, so a tracked leaf is validated by walking
+  `iterateAllLeaves` instead. The editor pane needs no tracking at all — it is
+  found by view type (`getLeavesOfType(DRAWIO_EDITOR_PANE_VIEW_TYPE)`), which
+  is also what makes it survive the user moving it; the link pane is tracked on
+  the plugin (`linkPaneLeaf`) because it holds arbitrary view types. Both split
+  off the leaf that CONTAINS the clicked preview (`leafContaining`), not the
+  active leaf, so Edit/link from a background pane still lands next to the
+  right note. Neither pane is ever detached by us — same reason `onunload()`
+  must not `detachLeavesOfType` (below): the user's placement is theirs.
+  A restored editor pane has no live source (a `CodeBlockSource` is bound to a
+  rendered element and cannot be serialised), so it renders a placeholder
+  instead of guessing.
 - **Popout-window safety**: use `activeDocument`/`activeWindow` (baseline-supported),
   not `document`/`window`, in render paths.
 - **A popped-out `.drawio` editor needs BOTH directions of the `postMessage` bridge
@@ -248,10 +313,11 @@ name; the manifest id inside is `drawio-editor`).
     silently drops when popped out (its parent is the popout window), so the handshake
     stalls right after `configure` and the pane stays blank. In the main window
     `this.win === window`, the popout branch is skipped, and `post()` posts directly
-    (unchanged) — which is also why the modal (code blocks / embeds, always main-window)
-    and the in-main-window file view never showed the bug, making it look
-    window-specific. Diagnose with the drawio handshake: `configure` received but no
-    `init` follow-up ⇒ the reply isn't reaching drawio ⇒ it's the send side.
+    (unchanged) — which is also why the modal (code blocks / embeds, always main-window;
+    removed in 0.8.0 in favour of the editor pane, which CAN be moved to a popout and
+    therefore relies on both fixes) and the in-main-window file view never showed the
+    bug, making it look window-specific. Diagnose with the drawio handshake: `configure`
+    received but no `init` follow-up ⇒ the reply isn't reaching drawio ⇒ it's the send side.
 - **`Vault.createFolder()` requires Obsidian 1.4.0+** (it carries a `@since 1.4.0`
   JSDoc tag in `obsidian.d.ts`). `src/file/createDiagram.ts` originally called it
   unguarded, tripping `obsidianmd/no-unsupported-api` while `minAppVersion` was
@@ -443,6 +509,16 @@ cutting a release — cheaper than a review round-trip.
   (runs in CI after `fetch-drawio`; asserts zero `(?<=`, `(?<!`, named groups,
   and `\p{`/`\P{` occurrences). If the test fires after a bump, inspect the hit
   before shipping — do not just relax the assertion.
+
+**The hover Edit button (`src/preview/editButton.ts`) — read this before
+"fixing" it away:** 0.6.0 shipped a hover *badge* and 0.6.1 removed it, for
+three concrete reasons: it was centred (covering the diagram), it wasn't a
+`<button>` (so not focusable), and it went stale when **Preview click action**
+changed. The 0.8.0 button is the deliberate answer to all three — a real
+`<button>` in the corner, revealed by CSS `:hover`/`:focus-visible` only, with
+its action resolved at click time — and it is now the ONLY way into the editor
+from a preview (the default click action is "Do nothing"). Removing it again
+would leave code blocks with no editing entry point at all.
 
 **Anything that dynamically creates DOM elements or runs code:**
 - [ ] Never `doc.createElement('script')` — even for our own vendored, offline,

@@ -173,6 +173,37 @@ export class Component {
   onunload(): void {}
 }
 
+export class WorkspaceLeaf {
+  view: unknown = null;
+  async openFile(_file: TFile, _state?: unknown): Promise<void> {}
+  async setViewState(_state: unknown, _eState?: unknown): Promise<void> {}
+  getViewState(): unknown { return {}; }
+  detach(): void {}
+}
+
+export class View extends Component {
+  app: unknown;
+  leaf: WorkspaceLeaf;
+  containerEl: HTMLElement = document.createElement('div');
+  navigation = false;
+  constructor(leaf: WorkspaceLeaf) {
+    super();
+    this.leaf = leaf;
+    this.app = (leaf as unknown as { app?: unknown })?.app;
+  }
+  getViewType(): string { return ''; }
+  getDisplayText(): string { return ''; }
+  getIcon(): string { return ''; }
+  async onOpen(): Promise<void> {}
+  async onClose(): Promise<void> {}
+  getState(): unknown { return {}; }
+  async setState(_state: unknown, _result: unknown): Promise<void> {}
+}
+
+export class ItemView extends View {
+  contentEl: HTMLElement = document.createElement('div');
+}
+
 export class MarkdownRenderChild extends Component {
   containerEl: HTMLElement;
   constructor(containerEl: HTMLElement) {
