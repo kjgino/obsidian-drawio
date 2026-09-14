@@ -32,6 +32,22 @@
 
 编辑器需要二者之一：已安装的离线编辑器（在设置中一键完成，下载约 53 MB），或在插件设置中选择 **Editor source → Online**。参见[离线编辑器（可选）](#离线编辑器可选)。
 
+### 用 BRAT 安装预发布版本
+
+想使用尚未进入社区插件商店的版本 —— 本仓库的最新发行版，或某个 fork 的构建 —— 可以使用 [BRAT](https://github.com/TfTHacker/obsidian42-brat)：它直接从 GitHub 仓库安装插件并保持更新。
+
+1. 从社区插件商店安装并启用 **BRAT**。
+2. 运行命令 **BRAT: Plugins: Add a beta plugin for testing**。
+3. 粘贴仓库地址 —— `doge-liang/obsidian-drawio`，或你想测试的 fork —— 并确认。BRAT 会下载最新发行版并完成安装。
+4. 在 **设置 → 第三方插件** 中启用 **Drawio**。
+
+之后可用 **BRAT: Plugins: Check for updates to all beta plugins** 更新；在 BRAT 的设置中打开相应开关后，也可在启动时自动更新。
+
+两点需要注意：
+
+- **不要与商店版本同时使用。** 两者的插件 id 都是 `drawio-editor`，会共用库中同一个文件夹 —— 请先停用并删除商店版本（你的设置和图表不受影响）。
+- BRAT 安装的内容**不包含**离线编辑器（该包约 145 MB）。请在插件设置中一键安装，或把 **Editor source** 切换为 **Online**。参见[离线编辑器（可选）](#离线编辑器可选)。
+
 ## 用法
 
 | 载体 | 创建 | 编辑 |

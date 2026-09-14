@@ -382,6 +382,15 @@ name; the manifest id inside is `drawio-editor`).
    truth) and mirror the fix with `gh release edit <ver> --notes-file ...`.
 6. Publishing a release (however it's created) is how the Obsidian review
    **re-runs** — cut one whenever you want a fresh review pass, even for a small fix.
+   A release is also what **BRAT** installs from, which is how anyone (including
+   a fork) ships a build before the store has it. BRAT needs exactly two things,
+   both of which the workflow already guarantees: `manifest.json` in the repo
+   root of the default branch, and a release whose **tag equals that
+   `manifest.json`'s `version`** carrying `main.js`, `manifest.json` and
+   `styles.css` as assets. **Never drop any of those three assets** (extra ones,
+   like the offline zip, are ignored by both BRAT and the store), and never
+   publish the release as a draft. A fork that wants BRAT installs needs nothing
+   but Actions enabled and a version tag pushed.
 7. **`env -u GITHUB_TOKEN`** is still required for any `gh`/`git` write op you run
    by hand (tagging, editing release notes, etc.) — the ambient PAT lacks scope;
    the `doge-liang` oauth login has it. (The workflow itself uses the auto-issued

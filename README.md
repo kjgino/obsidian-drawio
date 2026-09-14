@@ -32,6 +32,22 @@ Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagr
 
 The editor needs one of: the offline editor installed (one click in settings, ~53 MB download), or **Editor source → Online** in the plugin settings. See [Offline editor](#offline-editor-optional).
 
+### Installing a pre-release build with BRAT
+
+To run a version that isn't in the community store yet — the newest release here, or a fork's build — use [BRAT](https://github.com/TfTHacker/obsidian42-brat), which installs a plugin straight from a GitHub repository and keeps it updated:
+
+1. Install and enable **BRAT** from the community plugin store.
+2. Run the command **BRAT: Plugins: Add a beta plugin for testing**.
+3. Paste the repository — `doge-liang/obsidian-drawio`, or the fork you want to test — and confirm. BRAT downloads the latest release and installs it.
+4. Enable **Drawio** under **Settings → Community plugins**.
+
+BRAT then updates it with **BRAT: Plugins: Check for updates to all beta plugins**, or automatically at startup if you turn that on in BRAT's settings.
+
+Two things to know:
+
+- **Don't run a BRAT install alongside the store version.** Both use the plugin id `drawio-editor`, so they share the same folder inside your vault — disable and remove the store copy first (your settings and diagrams are untouched).
+- The offline editor is **not** part of what BRAT installs (the bundle is ~145 MB). Install it with one click from the plugin settings, or switch **Editor source** to **Online**. See [Offline editor](#offline-editor-optional).
+
 ## Usage
 
 | Surface | Create | Edit |
