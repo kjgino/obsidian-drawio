@@ -39,13 +39,14 @@ describe('DrawioSettingTab', () => {
     expect(names).toContain('Open diagram files read-only');
     expect(names).toContain('Preview click action');
     expect(names).toContain('Migrate from the old Diagrams plugin');
-    expect(names).not.toContain('Edit button action');
+    // The Edit button exists on every preview now, so its action is always
+    // configurable — not gated on the interactive viewer as it was in 0.7.x.
+    expect(names).toContain('Edit button action');
   });
 
-  it('shows Edit button action only when Interactive viewer is selected', () => {
+  it('always offers Edit button action, with a per-surface breakdown', () => {
     Platform.isDesktopApp = true;
     const plugin = fakePlugin();
-    plugin.settings.previewClickAction = 'interactive';
     const tab = new DrawioSettingTab({} as never, plugin);
     tab.display();
     const names = rowNames(tab.containerEl);

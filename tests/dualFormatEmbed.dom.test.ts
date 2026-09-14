@@ -13,9 +13,16 @@ import { DualFormatFileSource } from '../src/file/DualFormatFileSource';
 import type { PreviewClickAction } from '../src/settings';
 import type DrawioPlugin from '../src/main';
 
-type PostProcessor = (el: HTMLElement, ctx: { sourcePath: string }) => void;
+interface FakeCtx {
+  sourcePath: string;
+  addChild(child: { load?: () => void }): void;
+}
+type PostProcessor = (el: HTMLElement, ctx: FakeCtx) => void;
 
-function fakePlugin(previewClickAction: PreviewClickAction = 'editor') {
+function fakePlugin(
+  previewClickAction: PreviewClickAction = 'editor',
+  editButtonAction: 'editor' | 'defaultApp' = 'editor',
+) {
   let processor: PostProcessor | undefined;
   const openEditor = vi.fn();
   const openWithDefaultApp = vi.fn();
@@ -34,13 +41,18 @@ function fakePlugin(previewClickAction: PreviewClickAction = 'editor') {
       },
       openWithDefaultApp,
     },
-    settings: { previewClickAction },
+    settings: { previewClickAction, editButtonAction },
     openEditor,
     registerMarkdownPostProcessor: (cb: PostProcessor) => { processor = cb; },
   };
   return {
     plugin: raw as unknown as DrawioPlugin,
-    run: (el: HTMLElement) => processor!(el, { sourcePath: 'note.md' }),
+    run: (el: HTMLElement) => processor!(el, {
+      sourcePath: 'note.md',
+      // Obsidian loads a child added to a live section right away; the Edit
+      // button is mounted from that load.
+      addChild: (child) => { child.load?.(); },
+    }),
     openEditor,
     openWithDefaultApp,
   };
@@ -157,5 +169,48 @@ describe('dual-format image embeds — click-to-edit', () => {
     run(parent);
     expect(parent.querySelectorAll('.drawio-dualformat-embed').length).toBe(1);
     expect(span.dataset.drawioDualformat).toBe('1');
+  });
+});
+
+describe('dual-format image embeds — hover Edit button', () => {
+  const originalIsDesktopApp = Platform.isDesktopApp;
+  afterEach(() => { Platform.isDesktopApp = originalIsDesktopApp; });
+
+  it('mounts an Edit button that opens the dual-format editor', () => {
+    Platform.isDesktopApp = true;
+    const { plugin, run, openEditor } = fakePlugin('none');
+    registerDualFormatEmbeds(plugin);
+
+    const { span } = makeEmbed('diagram.drawio.svg');
+    run(span.parentElement as HTMLElement);
+
+    const button = span.querySelector('button.drawio-edit-button')!;
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
+    expect(openEditor.mock.calls[0]?.[0]).toBeInstanceOf(DualFormatFileSource);
+    expect(openEditor.mock.calls[0]?.[1]).toBe(span);
+  });
+
+  it("follows 'Edit button action' when it is set to the system default app", () => {
+    Platform.isDesktopApp = true;
+    const { plugin, run, openEditor, openWithDefaultApp } = fakePlugin('none', 'defaultApp');
+    registerDualFormatEmbeds(plugin);
+
+    const { span } = makeEmbed('diagram.drawio.png');
+    run(span.parentElement as HTMLElement);
+
+    span.querySelector('button.drawio-edit-button')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openWithDefaultApp).toHaveBeenCalledWith('diagram.drawio.png');
+    expect(openEditor).not.toHaveBeenCalled();
+  });
+
+  it('adds no Edit button on mobile', () => {
+    Platform.isDesktopApp = false;
+    const { plugin, run } = fakePlugin('none');
+    registerDualFormatEmbeds(plugin);
+    const { span } = makeEmbed('diagram.drawio.svg');
+    run(span.parentElement as HTMLElement);
+    expect(span.querySelector('.drawio-edit-button')).toBeNull();
   });
 });

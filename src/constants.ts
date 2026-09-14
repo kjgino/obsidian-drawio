@@ -1,4 +1,6 @@
 export const DRAWIO_VIEW_TYPE = 'drawio-file-view';
+/** The reusable bottom-split editor pane (code blocks, embeds, image files). */
+export const DRAWIO_EDITOR_PANE_VIEW_TYPE = 'drawio-editor-pane';
 export const DRAWIO_CODE_BLOCK_LANG = 'drawio';
 export const DRAWIO_FILE_EXT = 'drawio';
 

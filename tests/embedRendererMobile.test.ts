@@ -109,6 +109,42 @@ describe('drawio embed — mobile click behavior', () => {
     expect(openEditor).toHaveBeenCalledTimes(1);
   });
 
+  it('mounts a hover Edit button that opens the editor', async () => {
+    Platform.isDesktopApp = true;
+    const openEditor = vi.fn();
+    const { plugin, create } = fakePlugin(openEditor, 'none');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    const embed = create(containerEl);
+    await embed.loadFile();
+
+    const button = containerEl.querySelector('button.drawio-edit-button')!;
+    button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    expect(openEditor).toHaveBeenCalledTimes(1);
+    expect(openEditor.mock.calls[0]?.[1]).toBe(containerEl);
+  });
+
+  it('keeps exactly one Edit button across re-renders', async () => {
+    Platform.isDesktopApp = true;
+    const { plugin, create } = fakePlugin(vi.fn(), 'none');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    const embed = create(containerEl);
+    await embed.loadFile();
+    await embed.loadFile();
+    expect(containerEl.querySelectorAll('.drawio-edit-button').length).toBe(1);
+  });
+
+  it('has no Edit button on mobile', async () => {
+    Platform.isDesktopApp = false;
+    const { plugin, create } = fakePlugin(vi.fn(), 'none');
+    registerDrawioEmbeds(plugin);
+    const containerEl = document.createElement('div');
+    const embed = create(containerEl);
+    await embed.loadFile();
+    expect(containerEl.querySelector('.drawio-edit-button')).toBeNull();
+  });
+
   it('opens the system default app on click under "defaultApp"', async () => {
     Platform.isDesktopApp = true;
     const openEditor = vi.fn();

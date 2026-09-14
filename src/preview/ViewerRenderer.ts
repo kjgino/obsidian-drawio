@@ -1,6 +1,7 @@
 import { ensureViewerLoaded, getGraphViewer } from './loadViewer';
 import { isValidDrawioXml, ensureMxfile } from '../model/xmlUtils';
 import { sanitizeSvgToNode } from './svgSanitizer';
+import { buildLinkLayer, type LinkSourceViewer } from './linkLayer';
 
 export interface RenderOptions {
   dark: boolean;
@@ -69,8 +70,11 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
   const win = el.ownerDocument.defaultView ?? window;
   const urlParams = (win as unknown as { urlParams?: Record<string, unknown> }).urlParams;
   const prevPage = urlParams?.page;
+  // The instance is the only handle on the live `graph`, which carries the
+  // per-cell links (the rendered SVG carries none) — see linkLayer.ts.
+  let instance: LinkSourceViewer | null = null;
   try {
-    viewer.createViewerForElement(mount);
+    viewer.createViewerForElement(mount, (created) => { instance = created; });
   } finally {
     if (urlParams) urlParams.page = prevPage;
   }
@@ -81,7 +85,7 @@ export function renderPreview(el: HTMLElement, xml: string, opts: RenderOptions)
     done = true;
     let clean: Node | null = null;
     try {
-      clean = extractSizedSvg(svg, el.ownerDocument);
+      clean = extractSizedSvg(svg, el.ownerDocument, instance);
     } catch {
       clean = null;
     }
@@ -144,9 +148,17 @@ export const VIEWBOX_CENTERING_SHIFT = (VIEWER_SIZE_PADDING - 2 * VIEWER_BORDER 
  * sizing that only works inside GraphViewer's own container. The result renders at
  * its natural size and scales down to the note width via CSS (`max-width:100%`).
  *
+ * Finally, the link hotspot layer is appended (see linkLayer.ts) — after
+ * sanitization, because these nodes are ours, not GraphViewer's, and carry no
+ * `href` at all.
+ *
  * Returns the imported, sanitized <svg> node, or null if no <svg> survived.
  */
-function extractSizedSvg(svg: SVGSVGElement, targetDoc: Document): Node | null {
+function extractSizedSvg(
+  svg: SVGSVGElement,
+  targetDoc: Document,
+  viewer: LinkSourceViewer | null,
+): Node | null {
   // Capture bounds before sanitizing. `min-width`/`min-height` carry the diagram
   // size even when the mount is detached (offsetWidth would be 0); a live bounding
   // rect is the fallback when, rarely, the style isn't present.
@@ -176,5 +188,6 @@ function extractSizedSvg(svg: SVGSVGElement, targetDoc: Document): Node | null {
       out.style.removeProperty(prop);
     }
   }
+  buildLinkLayer(viewer, out, targetDoc);
   return frag;
 }

@@ -13,7 +13,9 @@ Embed, preview, and edit [draw.io](https://www.drawio.com/) (diagrams.net) diagr
 
 ## Highlights
 
-- **Three surfaces, one plugin** — inline `` ```drawio `` code blocks, standalone `.drawio` files (Excalidraw-style: the editor lives right in the file's tab), and `![[file.drawio]]` embeds. Code blocks and `.drawio` embeds render live SVG previews in both editing and reading views. On desktop, clicking a preview follows **Preview click action** (open the editor by default). Dual-format `.drawio.svg` / `.drawio.png` files display as ordinary images and stay editable here.
+- **Three surfaces, one plugin** — inline `` ```drawio `` code blocks, standalone `.drawio` files (Excalidraw-style: the editor lives right in the file's tab), and `![[file.drawio]]` embeds. Code blocks and `.drawio` embeds render live SVG previews in both editing and reading views. On desktop, hover any preview and press **Edit**. Dual-format `.drawio.svg` / `.drawio.png` files display as ordinary images and stay editable here.
+- **Edit in a pane, not a modal** — **Edit** opens the diagram in a pane split below the note, so you can see the note while you draw. Every later **Edit**, from any diagram, reuses that same pane.
+- **Clickable diagram links** — give a shape a link in drawio and clicking it in Obsidian follows it: `[[wiki links]]`, `obsidian://open?…` URIs, vault paths, and external URLs. Internal targets open in one reused pane split to the right; external ones open in your browser. Works on mobile too.
 - **Migrate from the old Diagrams plugin** — scan the vault for ordinary `.svg` files with embedded drawio data and rename them to `.drawio.svg` in one step (desktop).
 - **Offline previews, always** — previews are produced by drawio's own viewer bundled into the plugin: no iframe, no network, on desktop and mobile alike.
 - **Offline editor, optionally** — the editor defaults to a bundled, fully offline drawio build served from a local server. Store installs don't include the bundle (~145 MB); install it with one click from the plugin settings, or switch the editor source to Online.
@@ -34,19 +36,30 @@ The editor needs one of: the offline editor installed (one click in settings, ~5
 
 | Surface | Create | Edit |
 | --- | --- | --- |
-| **Code block** | Add a `` ```drawio `` block in any note (start empty, or paste drawio XML) | Click the preview (see **Preview click action**; default: full-screen editor) |
+| **Code block** | Add a `` ```drawio `` block in any note (start empty, or paste drawio XML) | Hover the preview → **Edit** |
 | **`.drawio` file** | Ribbon button / **Create new diagram** command / folder context menu | Editor embedded directly in the file's tab |
-| **Embed** | `![[your-diagram.drawio]]` in any note | Click the preview (see **Preview click action**; default: quick-edit modal) |
-| **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Click the embed, the **Edit** button on the image tab, or right-click → **Edit drawio diagram** |
+| **Embed** | `![[your-diagram.drawio]]` in any note | Hover the preview → **Edit** |
+| **`.drawio.svg` / `.drawio.png` file** | Same entry points, after setting **New diagram format** | Hover the embed → **Edit**, the **Edit** button on the image tab, or right-click → **Edit drawio diagram** |
 
 Code blocks and `.drawio` embeds render as SVG previews in both editing and reading views. Dual-format files display as native images. Every edit autosaves back to its source — the code block's XML or the diagram file. File-backed embeds re-render automatically when the underlying file changes.
 
-**Clicking a preview (desktop):** **Settings → Drawio → Preview click action** chooses what a click does:
+**Editing a diagram (desktop):** hover a preview and an **Edit** button appears in its top-right corner. It opens the diagram in a **pane split below the note**, which is reused by every later **Edit** — pressing **Edit** on a second diagram swaps that pane to the new one instead of stacking panes. Move the pane wherever you like (including its own window); it stays there. Closing it is fine — the next **Edit** opens a new one. **Edit button action** chooses whether **Edit** opens the built-in editor or the system default app for file-backed diagrams (code blocks have no file, so they always use the built-in editor).
 
-- **Open built-in editor** (default) — a code-block preview opens the full-screen editor; an embed opens the quick-edit modal.
+**Linking from a diagram:** in drawio, right-click a shape (or an edge) and choose **Edit Link…**. Obsidian understands:
+
+- `[[Some Note]]`, `[[Some Note#Heading]]`, `[[Some Note|alias]]`
+- `obsidian://open?vault=…&file=…` — what **Copy Obsidian URL** produces
+- a plain vault path (`Notes/Design.md`) or a `#Heading` in the note holding the diagram
+- `https://…`, `mailto:…` and other ordinary URLs
+
+Clicking an internal link opens it in a **pane split to the right**, reused by every later link click; external URLs open in your browser. Links work in code blocks, `.drawio` embeds, and the read-only `.drawio` file tab, on desktop and mobile alike. (Dual-format `.drawio.svg` / `.drawio.png` embeds display as native images, so they carry the **Edit** button but no clickable links.)
+
+**Clicking a preview (desktop):** **Settings → Drawio → Preview click action** chooses what a plain click on the diagram does — clicking a link inside the diagram always follows that link, whatever this is set to:
+
+- **Do nothing** (default) — editing goes through the hover **Edit** button.
+- **Interactive viewer** — explore the diagram in place (wheel/trackpad zoom, drag to pan, **Fit**, **Full screen**). Drag the handle under a code-block or embed preview to set its height — remembered per insertion in the note (a `<!-- drawio-viewer: height=N -->` comment above that block or embed), and kept in sync between Live Preview and Reading view.
+- **Open built-in editor** — clicking anywhere on the diagram opens the editor pane, as in 0.7.x and earlier.
 - **Open in system default app** — opens the underlying `.drawio` file in the OS default application. Code blocks have no file, so they still open the built-in editor.
-- **Interactive viewer** — explore the diagram in place (wheel/trackpad zoom, drag to pan, **Fit**, **Full screen**). Use **Edit** when you want to change it; **Edit button action** chooses whether that opens the built-in editor or the system default app (code blocks always use the built-in editor). Drag the handle under a code-block or embed preview to set its height — remembered per insertion in the note (a `<!-- drawio-viewer: height=N -->` comment above that block or embed), and kept in sync between Live Preview and Reading view.
-- **Do nothing** — the preview is not clickable.
 
 The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embeds, and the read-only `.drawio` file tab. Opening a `.drawio` file still uses the embedded editor unless **Open diagram files read-only** is on. `![[file.drawio.svg]]` / `![[file.drawio.png]]` embeds follow the same setting in both Live Preview and Reading view, except **Interactive viewer** falls back to the editor — they display as a native image, with nothing to zoom.
 
@@ -70,13 +83,14 @@ The interactive viewer works on `` ```drawio `` blocks, `![[file.drawio]]` embed
 | Standalone `.drawio` file tab | Inline editor (or read-only preview, opt-in) | Read-only preview | Read-only preview |
 | Multi-page page switcher & `#Page-N` embeds | Yes | Yes | Yes |
 | Light/dark theme following | Yes | Yes | Yes |
+| Clickable links drawn into a diagram | Yes | Yes | Yes |
 | Interactive viewer (zoom / pan / full screen) | Yes | — | — |
-| Editing diagrams (modal / inline editor) | Yes | — | — |
+| Editing diagrams (editor pane / inline editor) | Yes | — | — |
 | Creating diagrams (ribbon, command, folder menu) | Yes | — | — |
 | Offline editor (bundled webapp + local server) | Yes | — | — |
 | Migrate old Diagrams-plugin `.svg` files | Yes | — | — |
 
-Phones and tablets behave identically: previews everywhere, no editing. Tapping a preview there shows a notice that editing needs desktop; the creation entry points are hidden as well, since their sole purpose is opening the editor.
+Phones and tablets behave identically: previews everywhere, plus clickable diagram links, but no editing. There is no **Edit** button there, and the creation entry points are hidden as well, since their sole purpose is opening the editor.
 
 <img src="https://raw.githubusercontent.com/doge-liang/obsidian-drawio/main/docs/assets/mobile-preview.png" alt="Read-only preview on mobile" width="320">
 
@@ -89,9 +103,9 @@ Phones and tablets behave identically: previews everywhere, no editing. Tapping 
 | **New diagram location** | Where the command and ribbon button create diagrams: vault root (default), the current note's folder, or a fixed folder (created if missing). The folder context menu always creates in the clicked folder. |
 | **New diagram format** | `.drawio` (plain XML, default), `.drawio.svg`, or `.drawio.png` — the latter two are standard images with the diagram embedded, viewable anywhere and editable here. |
 | **Open diagram files read-only** | Desktop: show a static preview instead of the embedded editor when opening `.drawio` files — for workflows centred on drawio-desktop. Applies to newly opened tabs. |
-| **Preview click action** | Desktop: what clicking a preview does — **Open built-in editor** (default), **Open in system default app**, **Interactive viewer**, or **Do nothing**. Code blocks have no file, so opening the system default app falls back to the built-in editor. |
-| **Edit button action** | Desktop: shown only when **Preview click action** is **Interactive viewer**. What the viewer's **Edit** button does for file-backed diagrams — the built-in editor or the system default app. Code blocks always use the built-in editor. |
-| **Preview alignment** | Center (default) or left-align rendered previews. |
+| **Preview click action** | Desktop: what clicking a preview does — **Do nothing** (default), **Interactive viewer**, **Open built-in editor**, or **Open in system default app**. Code blocks have no file, so opening the system default app falls back to the built-in editor. Links drawn into the diagram are always clickable. |
+| **Edit button action** | Desktop: what the **Edit** button does for file-backed diagrams — the built-in editor (in a pane below the note) or the system default app. Code blocks always use the built-in editor. |
+| **Preview alignment** | Left (default) or centered rendered previews. |
 | **Follow Obsidian theme** | Match the editor to Obsidian's light/dark theme. |
 | **Show shape libraries** | Toggle the editor's shape panel. |
 | **Server idle timeout** | Stop the local server after this idle period (minimum 5 s). Only relevant in Offline mode. |
@@ -115,7 +129,9 @@ Building from source also works and produces the same layout: run `npm run fetch
 
 ## Troubleshooting
 
-**Clicking a diagram does nothing / the editor won't open.** Editing is desktop-only. On mobile you get previews only. On desktop, check **Settings → Drawio → Preview click action**: **Do nothing** makes previews not clickable; **Interactive viewer** explores the diagram in place instead of opening the editor (use **Edit** to edit); **Open in system default app** opens the file outside Obsidian.
+**Clicking a diagram does nothing.** That is the default since 0.8.0 — hover the preview and press the **Edit** button in its top-right corner instead. To get click-to-edit back, set **Settings → Drawio → Preview click action** to **Open built-in editor**. Editing is desktop-only; on mobile you get previews (and diagram links) only.
+
+**A diagram link doesn't open.** Links are read from the diagram itself, so check the shape's link in drawio (right-click → **Edit Link…**). Wiki links, `obsidian://open?…file=` URIs, vault paths and ordinary URLs are supported; anything with an unusual scheme is refused on purpose. An internal link to a note that doesn't exist behaves like any other Obsidian link to a missing note.
 
 **I don't see the interactive viewer.** It is not the default. On desktop, set **Settings → Drawio → Preview click action** to **Interactive viewer**, then click a `` ```drawio `` preview or a `.drawio` embed. Opening a `.drawio` file still shows the embedded editor unless **Open diagram files read-only** is enabled. `.drawio.svg` / `.drawio.png` embeds fall back to the editor (they render as a native image).
 

@@ -3,6 +3,8 @@ import { renderPreview } from '../preview/ViewerRenderer';
 import { renderPageControl } from '../preview/pageControl';
 import { resolveClickAction, resolveEditButtonAction } from '../preview/clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from '../preview/interactiveMount';
+import { mountEditButton } from '../preview/editButton';
+import { registerDiagramLinks } from '../preview/linkNav';
 import { SectionLifecycle } from '../preview/sectionLifecycle';
 import {
   readCodeBlockViewportHeight, writeCodeBlockViewportHeight,
@@ -56,15 +58,37 @@ async function renderCodeBlock(
     });
   }
 
+  // The section may have been torn down while the stored-height read above was
+  // in flight (a child added to an unloaded owner is stored but never loaded,
+  // so nothing registered then would ever be disposed). Everything that needs a
+  // teardown is queued through this and hangs off its unload.
+  const lifecycle = new SectionLifecycle(wrapper);
+  ctx.addChild(lifecycle);
+
+  // Diagram links (shape links and html-label anchors) work on every platform:
+  // following one only moves the workspace around, which mobile can do too.
+  lifecycle.whenReady(() => {
+    const links = registerDiagramLinks(wrapper, plugin, { sourcePath: () => ctx.sourcePath });
+    lifecycle.register(() => links.dispose());
+  });
+
+  const runEditAction = () => {
+    const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
+    if (editAction.kind === 'editor') {
+      plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source), wrapper);
+    }
+  };
+
   if (Platform.isDesktopApp) {
-    // The section may have been torn down while the stored-height read above
-    // was in flight (a child added to an unloaded owner is stored but never
-    // loaded, so nothing registered then would ever be disposed). Mount only
-    // once Obsidian actually loads this section's children, and tie disposal
-    // to the section's unload.
-    const lifecycle = new SectionLifecycle(wrapper);
-    ctx.addChild(lifecycle);
     lifecycle.whenReady(() => {
+      // The hover Edit button is the way into the editor now that clicking the
+      // preview doesn't open it.
+      const editButton = mountEditButton(wrapper, {
+        label: 'Edit diagram',
+        onEdit: runEditAction,
+      });
+      lifecycle.register(() => editButton.dispose());
+
       const handle = mountInteractiveViewer(wrapper, preview, {
         isEnabled: () =>
           resolveClickAction(plugin.settings.previewClickAction, 'codeblock').kind === 'interactive',
@@ -77,29 +101,22 @@ async function renderCodeBlock(
             new Notice(`Drawio: could not save viewer height — ${String(err)}`);
           });
         },
-        onEdit: () => {
-          const editAction = resolveEditButtonAction(plugin.settings.editButtonAction, 'codeblock');
-          if (editAction.kind === 'editor') {
-            plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
-          }
-        },
+        onEdit: runEditAction,
       });
       interactive = handle;
       lifecycle.register(() => handle.dispose());
     });
   }
 
-  // Click anywhere on the diagram. The action is re-resolved at click time
-  // so settings changes apply to already-rendered blocks. Mobile has no
-  // editor — show a Notice instead.
+  // Click anywhere on the diagram. Since 0.8.0 the default is "Do nothing"
+  // (editing goes through the hover Edit button), but the setting still offers
+  // click-to-edit; it is re-resolved at click time so a settings change applies
+  // to already-rendered blocks. Mobile has no editor at all.
   wrapper.addEventListener('click', () => {
-    if (!Platform.isDesktopApp) {
-      new Notice('Drawio: editing is only available on desktop');
-      return;
-    }
+    if (!Platform.isDesktopApp) return;
     const current = resolveClickAction(plugin.settings.previewClickAction, 'codeblock');
     if (current.kind === 'editor') {
-      plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source));
+      plugin.openEditor(new CodeBlockSource(plugin.app, ctx, el, source), wrapper);
     }
   });
 }

@@ -1,4 +1,6 @@
-import { Plugin, FileSystemAdapter, MarkdownView, Notice, Platform } from 'obsidian';
+import {
+  Plugin, FileSystemAdapter, MarkdownView, Notice, Platform, WorkspaceLeaf,
+} from 'obsidian';
 import { OfflineEditorNotInstalledError } from './model/errors';
 import { InstallStatus } from './model/installStatus';
 import {
@@ -8,11 +10,12 @@ import {
 import type { BlockExtraction, EmbedConversion } from './model/blockFileConvert';
 import { DrawioSettings, DEFAULT_SETTINGS } from './settings';
 import type { ServerManager } from './server/ServerManager';
-import { DrawioModal } from './editor/DrawioModal';
 import type { DrawioEditorDeps } from './editor/DrawioEditor';
 import type { DrawioSource } from './model/DrawioSource';
 import type { RenderOptions } from './preview/ViewerRenderer';
-import { DRAWIO_VIEW_TYPE, DRAWIO_FILE_EXT, ONLINE_DRAWIO_URL } from './constants';
+import {
+  DRAWIO_VIEW_TYPE, DRAWIO_EDITOR_PANE_VIEW_TYPE, DRAWIO_FILE_EXT, ONLINE_DRAWIO_URL,
+} from './constants';
 
 export default class DrawioPlugin extends Plugin {
   settings!: DrawioSettings;
@@ -20,6 +23,10 @@ export default class DrawioPlugin extends Plugin {
   /** Offline-webapp install state — on the plugin (not the settings tab) so a
    * mid-install settings re-render can re-attach to the running install. */
   webappInstallStatus = new InstallStatus();
+  /** The one right-split pane diagram links open into, reused across clicks.
+   * Tracked as the leaf itself because `getLeafById` is @since 1.5.1, above
+   * this plugin's minAppVersion (see workspace/splitPane.ts). */
+  linkPaneLeaf: WorkspaceLeaf | null = null;
 
   async onload() {
     await this.loadSettings();
@@ -30,6 +37,10 @@ export default class DrawioPlugin extends Plugin {
     if (Platform.isDesktopApp) {
       const { DrawioFileView } = await import('./file/DrawioFileView');
       const { DrawioPreviewFileView } = await import('./preview/DrawioPreviewFileView');
+      // The shared bottom editor pane every "Edit" button opens into.
+      const { DrawioEditorPaneView } = await import('./editor/DrawioEditorPaneView');
+      this.registerView(DRAWIO_EDITOR_PANE_VIEW_TYPE, (leaf) =>
+        new DrawioEditorPaneView(leaf, this));
       // Decided per leaf creation, so toggling the setting affects newly
       // opened tabs without a plugin reload (already-open tabs keep their view).
       this.registerView(DRAWIO_VIEW_TYPE, (leaf) =>
@@ -73,6 +84,7 @@ export default class DrawioPlugin extends Plugin {
     // Don't detach the plugin's leaves here: doing so resets the view to its
     // default location on next load, discarding where the user moved it. The
     // local server is stopped via the cleanup registered in onload().
+    this.linkPaneLeaf = null;
     this.server?.stop();
   }
 
@@ -149,7 +161,8 @@ export default class DrawioPlugin extends Plugin {
     setPreviewAlignmentClass(this, this.settings.previewAlignment === 'left');
   }
 
-  /** Shared deps for any DrawioEditor surface (modal or inline file view).
+  /** Shared deps for any DrawioEditor surface (the editor pane or the inline
+   * .drawio file view).
    * Only ever consumed by desktop-only entry points (see Global Constraints). */
   editorDeps(): DrawioEditorDeps {
     return {
@@ -161,8 +174,16 @@ export default class DrawioPlugin extends Plugin {
     };
   }
 
-  openEditor(source: DrawioSource) {
-    new DrawioModal(this.app, source, this.editorDeps()).open();
+  /** Open a diagram in the shared bottom editor pane (desktop only).
+   * `originEl` is the preview that was clicked — it anchors a first-time split
+   * to that note's pane rather than to whatever is active. */
+  openEditor(source: DrawioSource, originEl?: HTMLElement | null) {
+    void import('./editor/editorPane')
+      .then((m) => m.openInEditorPane(this, source, originEl))
+      .catch((err) => {
+        console.error('[drawio] failed to open the editor pane', err);
+        new Notice(`Drawio: failed to open the editor — ${String(err)}`);
+      });
   }
 
   async loadSettings() {

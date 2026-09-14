@@ -25,15 +25,18 @@ describe('DEFAULT_SETTINGS', () => {
     expect(DEFAULT_SETTINGS.showLibraries).toBe(true);
   });
 
-  it('creates new diagrams at the vault root with centered previews', () => {
+  it('creates new diagrams at the vault root with left-aligned previews', () => {
     expect(DEFAULT_SETTINGS.newDiagramLocation).toBe('root');
     expect(DEFAULT_SETTINGS.newDiagramFolder).toBe('');
-    expect(DEFAULT_SETTINGS.previewAlignment).toBe('center');
+    // Left since 0.8.0: a diagram in a note reads as part of the text flow.
+    expect(DEFAULT_SETTINGS.previewAlignment).toBe('left');
   });
 
-  it('defaults to the editable file view with the built-in editor click action', () => {
+  it('defaults to the editable file view and an inert preview click', () => {
     expect(DEFAULT_SETTINGS.readonlyFileView).toBe(false);
-    expect(DEFAULT_SETTINGS.previewClickAction).toBe('editor');
+    // Since 0.8.0 editing goes through the hover Edit button, so a plain click
+    // on the diagram is deliberately inert.
+    expect(DEFAULT_SETTINGS.previewClickAction).toBe('none');
     expect(DEFAULT_SETTINGS.editButtonAction).toBe('editor');
     // Empty means "never shown", so a fresh install with a drifted webapp
     // still gets its one notice.

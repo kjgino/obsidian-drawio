@@ -4,6 +4,8 @@ import { renderPreview } from './ViewerRenderer';
 import { renderPageControl } from './pageControl';
 import { resolveClickAction, resolveEditButtonAction, openWithDefaultApp } from './clickAction';
 import { mountInteractiveViewer, type InteractiveMountHandle } from './interactiveMount';
+import { mountEditButton, type EditButtonHandle } from './editButton';
+import { registerDiagramLinks, type DiagramLinkHandle } from './linkNav';
 import { getDiagramPages, ensureMxfile } from '../model/xmlUtils';
 import { FileSource } from '../file/FileSource';
 import type DrawioPlugin from '../main';
@@ -17,12 +19,19 @@ import type DrawioPlugin from '../main';
  */
 export class DrawioPreviewFileView extends TextFileView {
   private interactive: InteractiveMountHandle | null = null;
+  private editButton: EditButtonHandle | null = null;
+  private links: DiagramLinkHandle | null = null;
 
   constructor(leaf: WorkspaceLeaf, private plugin: DrawioPlugin) {
     super(leaf);
     this.data = '';
-    // One listener for the view's lifetime; render() only refreshes children.
+    // Two listeners for the view's lifetime; render() only refreshes children.
     this.contentEl.addEventListener('click', () => { this.onPreviewClick(); });
+    // Links resolve against the diagram file itself (its folder is the
+    // natural root for a relative link drawn into the diagram).
+    this.links = registerDiagramLinks(this.contentEl, this.plugin, {
+      sourcePath: () => this.file?.path ?? '',
+    });
   }
 
   getViewType(): string { return DRAWIO_VIEW_TYPE; }
@@ -37,14 +46,27 @@ export class DrawioPreviewFileView extends TextFileView {
   clear(): void {
     this.interactive?.dispose();
     this.interactive = null;
+    this.editButton?.dispose();
+    this.editButton = null;
     this.data = '';
     this.contentEl.empty();
+  }
+
+  async onClose(): Promise<void> {
+    this.interactive?.dispose();
+    this.interactive = null;
+    this.editButton?.dispose();
+    this.editButton = null;
+    this.links?.dispose();
+    this.links = null;
   }
 
   private render(): void {
     const c = this.contentEl;
     this.interactive?.dispose();
     this.interactive = null;
+    this.editButton?.dispose();
+    this.editButton = null;
     c.empty();
     c.addClass('drawio-preview-file-view');
 
@@ -76,18 +98,14 @@ export class DrawioPreviewFileView extends TextFileView {
     }
 
     if (Platform.isDesktopApp) {
+      this.editButton = mountEditButton(c, {
+        label: 'Edit diagram',
+        onEdit: () => this.runEditAction(),
+      });
       this.interactive = mountInteractiveViewer(c, preview, {
         isEnabled: () =>
           resolveClickAction(this.plugin.settings.previewClickAction, 'file').kind === 'interactive',
-        onEdit: () => {
-          if (!this.file) return;
-          const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
-          if (editAction.kind === 'editor') {
-            this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
-          } else if (editAction.kind === 'defaultApp') {
-            openWithDefaultApp(this.plugin.app, this.file.path);
-          }
-        },
+        onEdit: () => this.runEditAction(),
       });
     }
   }
@@ -97,8 +115,19 @@ export class DrawioPreviewFileView extends TextFileView {
     // Resolve at click time so a settings change applies without reopening.
     const action = resolveClickAction(this.plugin.settings.previewClickAction, 'file');
     if (action.kind === 'editor') {
-      this.plugin.openEditor(new FileSource(this.plugin.app, this.file));
+      this.plugin.openEditor(new FileSource(this.plugin.app, this.file), this.contentEl);
     } else if (action.kind === 'defaultApp') {
+      openWithDefaultApp(this.plugin.app, this.file.path);
+    }
+  }
+
+  /** The hover Edit button and the interactive viewer's Edit button share it. */
+  private runEditAction(): void {
+    if (!this.file) return;
+    const editAction = resolveEditButtonAction(this.plugin.settings.editButtonAction, 'file');
+    if (editAction.kind === 'editor') {
+      this.plugin.openEditor(new FileSource(this.plugin.app, this.file), this.contentEl);
+    } else if (editAction.kind === 'defaultApp') {
       openWithDefaultApp(this.plugin.app, this.file.path);
     }
   }
